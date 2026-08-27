@@ -1,4 +1,5 @@
 local arcs = T {};
+local idIndexCache = {};
 
 -- local function isMob(id)
 --     return bit.band(id, 0xFF000000) ~= 0;
@@ -15,6 +16,14 @@ end
 local function GetIndexFromId(id)
     local entMgr = AshitaCore:GetMemoryManager():GetEntity();
 
+    local cachedIndex = idIndexCache[id];
+    if (cachedIndex ~= nil) then
+        if (entMgr:GetServerId(cachedIndex) == id) then
+            return cachedIndex;
+        end
+        idIndexCache[id] = nil;
+    end
+
     --Shortcut for monsters/static npcs..
     if (bit.band(id, 0x1000000) ~= 0) then
         local index = bit.band(id, 0xFFF);
@@ -23,12 +32,14 @@ local function GetIndexFromId(id)
         end
 
         if (index < 0x900) and (entMgr:GetServerId(index) == id) then
+            idIndexCache[id] = index;
             return index;
         end
     end
 
     for i = 1, 0x8FF do
         if entMgr:GetServerId(i) == id then
+            idIndexCache[id] = i;
             return i;
         end
     end
@@ -56,8 +67,13 @@ local function handleActionPacket(e)
         local actorIndex = GetIndexFromId(actorId);
         local targetIndex = GetIndexFromId(targetId);
 
-        local actorFlags = AshitaCore:GetMemoryManager():GetEntity():GetSpawnFlags(actorIndex);
-        local targetFlags = AshitaCore:GetMemoryManager():GetEntity():GetSpawnFlags(targetIndex);
+        if (actorIndex == 0 or targetIndex == 0) then
+            return;
+        end
+
+        local entity = AshitaCore:GetMemoryManager():GetEntity();
+        local actorFlags = entity:GetSpawnFlags(actorIndex);
+        local targetFlags = entity:GetSpawnFlags(targetIndex);
 
         if (isMob(actorFlags) and not isPet(actorFlags)) then
             if (isMob(targetFlags)) then
@@ -78,7 +94,7 @@ local function handleActionPacket(e)
 
             if (type == 4 and color == 'playerFriendly') then
                 clock = clock - timeouts.playerFriendly + 0.5;
-            elseif (arc.dst == targetIndex and os.clock() - arc.clock < timeouts[color]) then
+            elseif (arc.dst == targetIndex and clock - arc.clock < timeouts[color]) then
                 if (arc.color == 'player') then
                     -- clock = arc.clock;
                     firstClock = arc.firstClock or clock;
@@ -102,14 +118,15 @@ local function handleMessagePacket(data)
     local message = struct.unpack('i2', data, 0x18 + 1);
 
     if (deathMes:contains(message)) then
+        local clock = os.clock();
         local target = struct.unpack('i2', data, 0x14 + 1);
         local sender = struct.unpack('i2', data, 0x16 + 1);
 
         if (arcs[target]) then
-            arcs[target].clock = os.clock() - timeouts[arcs[target].color] + 0.5;
+            arcs[target].clock = clock - timeouts[arcs[target].color] + 0.5;
             if (arcs[sender]) then
                 if (arcs[sender].dst == target) then
-                    arcs[sender].clock = os.clock() - timeouts[arcs[target].color] + 0.5;
+                    arcs[sender].clock = clock - timeouts[arcs[target].color] + 0.5;
                 end
             end
         end

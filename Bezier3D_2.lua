@@ -37,10 +37,22 @@ function Bezier2:testCoefficients(mx, my, mz, mw, res)
     local b = self.MP1[1] * mx + self.MP1[2] * my + self.MP1[3] * mz;
     local c = self.MP0[1] * mx + self.MP0[2] * my + self.MP0[3] * mz + mw;
 
-    local term2 = b ^ 2 - 4 * a * c;
-    if (term2 == 0) then
+    if (math.abs(a) < 0.000001) then
+        if (math.abs(b) < 0.000001) then
+            return res;
+        end
+
+        local t = -c / b;
+        if (t >= 0 and t <= 1) then
+            res:insert(t);
+        end
+        return res;
+    end
+
+    local term2 = b * b - 4 * a * c;
+    if (math.abs(term2) < 0.000001) then
         -- One real solution
-        local t = { -b / a * 0.5 };
+        local t = -b / a * 0.5;
         if (t >= 0 and t <= 1) then
             res:insert(t);
         end
@@ -173,13 +185,13 @@ end
 function Bezier2:new(controlPoints)
     local res = {};
 
-    self.P0 = controlPoints[1];
-    self.P1 = controlPoints[2];
-    self.P2 = controlPoints[3];
+    res.P0 = controlPoints[1];
+    res.P1 = controlPoints[2];
+    res.P2 = controlPoints[3];
 
-    local P0 = self.P0;
-    local P1 = self.P1;
-    local P2 = self.P2;
+    local P0 = res.P0;
+    local P1 = res.P1;
+    local P2 = res.P2;
 
     -- Cache the polynomial coefficients
     res.MP0 = {
@@ -212,7 +224,7 @@ function Bezier2:new(controlPoints)
     };
 
     -- (P2 - P0) x (P1 - P0)
-    self.C = normalize({
+    res.C = normalize({
         (P2[2] - P0[2]) * (P1[3] - P0[3]) - (P2[3] - P0[3]) * (P1[2] - P0[2]),
         (P2[3] - P0[3]) * (P1[1] - P0[1]) - (P2[1] - P0[1]) * (P1[3] - P0[3]),
         (P2[1] - P0[1]) * (P1[2] - P0[2]) - (P2[2] - P0[2]) * (P1[1] - P0[1]),

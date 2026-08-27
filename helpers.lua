@@ -4,10 +4,6 @@ local d3d = require('d3d8');
 local C = ffi.C;
 local d3d8dev = d3d.get_device();
 
-local _, viewport = d3d8dev:GetViewport();
-local width = viewport.Width;
-local height = viewport.Height;
-
 local function matrixMultiply(m1, m2)
     return ffi.new('D3DXMATRIX', {
         --
@@ -42,22 +38,20 @@ local function vec4Transform(v, m)
     });
 end
 
-local function worldToScreen(x, y, z, view, projection)
-    local vplayer = ffi.new('D3DXVECTOR4', { x, y, z, 1 });
+local function worldToScreen(x, y, z, viewProj, width, height)
+    local cameraX = viewProj._11 * x + viewProj._21 * y + viewProj._31 * z + viewProj._41;
+    local cameraY = viewProj._12 * x + viewProj._22 * y + viewProj._32 * z + viewProj._42;
+    local cameraZ = viewProj._13 * x + viewProj._23 * y + viewProj._33 * z + viewProj._43;
+    local cameraW = viewProj._14 * x + viewProj._24 * y + viewProj._34 * z + viewProj._44;
+    local rhw = 1 / cameraW;
 
-    local viewProj = matrixMultiply(view, projection);
+    local ndcX = cameraX * rhw;
+    local ndcY = cameraY * rhw;
+    local ndcZ = cameraZ * rhw;
 
-    local pCamera = vec4Transform(vplayer, viewProj);
-
-    local rhw = 1 / pCamera.w;
-
-    local pNDC = ffi.new('D3DXVECTOR3', { pCamera.x * rhw, pCamera.y * rhw, pCamera.z * rhw })
-
-    local pRaster = ffi.new('D3DXVECTOR2');
-    pRaster.x = math.floor((pNDC.x + 1) * 0.5 * width);
-    pRaster.y = math.floor((1 - pNDC.y) * 0.5 * height);
-
-    return pRaster.x, pRaster.y, pNDC.z;
+    return math.floor((ndcX + 1) * 0.5 * width),
+        math.floor((1 - ndcY) * 0.5 * height),
+        ndcZ;
 end
 
 local function getBone(actorPointer, bone)
@@ -81,7 +75,8 @@ local function getBone(actorPointer, bone)
 
     return x + ashita.memory.read_float(generatorsAddress + (bone * 0x1A) + 0x0E + 0x0),
         y + ashita.memory.read_float(generatorsAddress + (bone * 0x1A) + 0x0E + 0x8),
-        z + ashita.memory.read_float(generatorsAddress + (bone * 0x1A) + 0x0E + 0x4)
+        z + ashita.memory.read_float(generatorsAddress + (bone * 0x1A) + 0x0E + 0x4),
+        z
 end
 
 local function normalize(vec3)
@@ -109,24 +104,24 @@ do
     local cos2 = math.cos(angle2);
     -- Rotates vector v around axis k by pi/16 radians
     -- k must be magnitude 1
-    function rotateVector16(k, v, flip)
+    function rotateVector16(kx, ky, kz, vx, vy, vz, flip)
         -- k . v
-        local kv = k[1] * v[1] + k[2] * v[2] + k[3] * v[3];
+        local kv = kx * vx + ky * vy + kz * vz;
 
         local rx, ry, rz
         if (flip) then
             local kvcos = kv * (1 - cos2);
-            rx = v[1] * cos2 + (k[2] * v[3] - k[3] * v[2]) * sin2 + k[1] * kvcos;
-            ry = v[2] * cos2 + (k[3] * v[1] - k[1] * v[3]) * sin2 + k[2] * kvcos;
-            rz = v[3] * cos2 + (k[1] * v[2] - k[2] * v[1]) * sin2 + k[3] * kvcos;
+            rx = vx * cos2 + (ky * vz - kz * vy) * sin2 + kx * kvcos;
+            ry = vy * cos2 + (kz * vx - kx * vz) * sin2 + ky * kvcos;
+            rz = vz * cos2 + (kx * vy - ky * vx) * sin2 + kz * kvcos;
         else
             local kvcos = kv * (1 - cos);
 
-            rx = v[1] * cos + (k[2] * v[3] - k[3] * v[2]) * sin + k[1] * kvcos;
-            ry = v[2] * cos + (k[3] * v[1] - k[1] * v[3]) * sin + k[2] * kvcos;
-            rz = v[3] * cos + (k[1] * v[2] - k[2] * v[1]) * sin + k[3] * kvcos;
+            rx = vx * cos + (ky * vz - kz * vy) * sin + kx * kvcos;
+            ry = vy * cos + (kz * vx - kx * vz) * sin + ky * kvcos;
+            rz = vz * cos + (kx * vy - ky * vx) * sin + kz * kvcos;
         end
-        return { rx, ry, rz };
+        return rx, ry, rz;
     end
 end
 
@@ -137,7 +132,5 @@ return {
     getBone = getBone,
     normalize = normalize,
     getTexture = getTexture,
-    rotateVector16 = rotateVector16,
-    width = width,
-    height = height
+    rotateVector16 = rotateVector16
 };

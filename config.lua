@@ -32,7 +32,7 @@ config.drawWindow = function()
             imgui.BeginChild("Config Options", { 0, 0 }, true);
             if (imgui.BeginCombo('Filters', s.filter)) then
                 for i = 1, 3 do
-                    local isSelected = i == s.filter;
+                    local isSelected = filters[i] == s.filter;
 
                     if (imgui.Selectable(filters[i], isSelected) and filters[i] ~= s.filter) then
                         s.filter = filters[i];
