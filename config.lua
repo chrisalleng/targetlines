@@ -29,7 +29,7 @@ config.drawWindow = function()
         imgui.SetNextWindowSize({ 400, 150 }, ImGuiCond_FirstUseEver);
 
         if (imgui.Begin(('Targetlines Config'):fmt(addon.version), showConfig, bit.bor(ImGuiWindowFlags_NoSavedSettings))) then
-            imgui.BeginChild("Config Options", { 0, 0 }, true);
+            imgui.BeginChild("Config Options", { 0, 0 }, ImGuiChildFlags_Borders);
             if (imgui.BeginCombo('Filters', s.filter)) then
                 for i = 1, 3 do
                     local isSelected = filters[i] == s.filter;
